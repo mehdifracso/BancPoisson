@@ -2,20 +2,18 @@
 #include <gtk/gtk.h>
 #include <math.h>
 #include <stdlib.h>
-#define DEP 10
-int x=0,y=0,vitesse=10;
-struct
-{
-    gushort count;
-} glob;
+int x=0,y=0;
 
-typedef struct wS
+typedef struct cW
 {
-    guint sourceid;
     GtkWidget *window;
-}WindowsSource;
+    guint sourceid;
+    guint deplacement;
+    guint vitesse;
+    gushort count;
+} CairoWindow;
 
-void deplacement_Aleatoire(int *x,int *y,int xMAX,int yMAX)
+void deplacement_Aleatoire(int *x,int *y,int xMAX,int yMAX,CairoWindow *cW)
 {
     int orientation=random_number(0,7);
     printf("\n[orientation] %d",orientation);
@@ -24,39 +22,39 @@ void deplacement_Aleatoire(int *x,int *y,int xMAX,int yMAX)
     switch(orientation)
     {
     case 0:
-        (*x)-=DEP;
+        (*x)-=cW->deplacement;
         puts("Left");
         break;
     case 1:
-        (*x)-=DEP;
-        (*y)-=DEP;
+        (*x)-=cW->deplacement;
+        (*y)-=cW->deplacement;
         puts("Up - left");
         break;
     case 2:
-        (*y)-=DEP;
+        (*y)-=cW->deplacement;
         puts("Up");
         break;
     case 3:
-        (*x)+=DEP;
-        (*y)-=DEP;
+        (*x)+=cW->deplacement;
+        (*y)-=cW->deplacement;
         puts("Up - Right");
         break;
     case 4:
-        (*x)+=DEP;
+        (*x)+=cW->deplacement;
         puts("Right");
         break;
     case 5:
-        (*x)+=DEP;
-        (*y)+=DEP;
+        (*x)+=cW->deplacement;
+        (*y)+=cW->deplacement;
         puts("Down - Right");
         break;
     case 6:
-        (*y)+=DEP;
+        (*y)+=cW->deplacement;
         puts("Down");
         break;
     case 7:
-        (*x)-=DEP;
-        (*y)+=DEP;
+        (*x)-=cW->deplacement;
+        (*y)+=cW->deplacement;
         puts("Down - Left");
         break;
     }
@@ -120,22 +118,22 @@ int random_number(int min_num, int max_num)
     result = (rand() % (hi_num - low_num)) + low_num;
     return result;
 }
-static gboolean on_draw_event(GtkWidget *widget, cairo_t *cr,gpointer window)
+static gboolean on_draw_event(GtkWidget *widget, cairo_t *cr,CairoWindow *cW)
 {
     int width,heigth;
-    gtk_window_get_size(GTK_WINDOW(window),&width,&heigth);
+    gtk_window_get_size(GTK_WINDOW(cW->window),&width,&heigth);
 
     cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
     cairo_set_line_width(cr, 0.2);
 
     int i;
-    for (i = 0; i <= width; i+=DEP )
+    for (i = 0; i <= width; i+=cW->deplacement )
     {
         /// ligne vertical
         cairo_move_to(cr,i,0);
         cairo_line_to(cr,i,heigth);
     }
-    for (i = 0; i <= heigth; i+=DEP )
+    for (i = 0; i <= heigth; i+=cW->deplacement )
     {
         /// ligne horizontale
         cairo_move_to(cr,0,i);
@@ -144,25 +142,26 @@ static gboolean on_draw_event(GtkWidget *widget, cairo_t *cr,gpointer window)
     }
     cairo_stroke(cr);
 
-    deplacement_Aleatoire(&x,&y,(width/20)*20-DEP,(heigth/20)*20-DEP);
+    deplacement_Aleatoire(&x,&y,(width/20)*20-cW->deplacement,(heigth/20)*20-cW->deplacement,cW);
 
     cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
 
-    cairo_rectangle(cr,x,y, DEP, DEP);
+    cairo_rectangle(cr,x,y, cW->deplacement, cW->deplacement);
 
     cairo_fill(cr);
 
     return FALSE;
 }
-static gboolean time_handler(GtkWidget *widget)
+
+static gboolean time_handler(GtkWidget *widget)//,CairoWindow *cW)
 {
-    glob.count += 1;
+//    cW.count += 1;
     gtk_widget_queue_draw(widget);
     return TRUE;
 }
-static gboolean clicked(GtkWidget *widget, GdkEventButton *event,guint * source_id)
-{
 
+static gboolean clicked(GtkWidget *widget, GdkEventButton *event,CairoWindow *cW)
+{
     if (event->button == 1)///lift-click
     {
 
@@ -177,52 +176,70 @@ static gboolean clicked(GtkWidget *widget, GdkEventButton *event,guint * source_
     return TRUE;
 }
 
-static void stop_animation(GtkWidget *button,WindowsSource *wS)
+static void stop_animation(GtkWidget *button,CairoWindow *cW)
 {
-        printf("\nremoving %d",wS->sourceid);
-        g_source_remove(wS->sourceid);
-        vitesse+=10;
-        printf("\nvitesse %d",vitesse);
+    printf("\nremoving %d",cW->sourceid);
+    g_source_remove(cW->sourceid);
+    cW->vitesse+=10;
+    printf("\nvitesse %d",cW->vitesse);
 }
 
-static void start_animation(GtkWidget *button,WindowsSource *wS)
+static void start_animation(GtkWidget *button,CairoWindow *cW)
 {
-        g_source_remove(wS->sourceid);
-        wS->sourceid = g_timeout_add(vitesse, (GSourceFunc) time_handler, (gpointer) wS->window);
-        printf("\nstarting %d",wS->sourceid);
+    g_source_remove(cW->sourceid);
+    cW->sourceid = g_timeout_add(cW->vitesse, (GSourceFunc) time_handler, (gpointer) cW->window);
+    printf("\nstarting %d",cW->sourceid);
 }
 
-static void change_vitesse(GtkRange *range,WindowsSource *wS)
+static void change_vitesse(GtkRange *range,CairoWindow *cW)
 {
 
-        vitesse = gtk_range_get_value (range);
-        printf("------------>%d",vitesse);
-        g_source_remove(wS->sourceid);
-        wS->sourceid = g_timeout_add(vitesse, (GSourceFunc) time_handler, (gpointer) wS->window);
-        printf("\nstarting %d",wS->sourceid);
+    cW->vitesse = gtk_range_get_value (range);
+    printf("------------>%d",cW->vitesse);
+    g_source_remove(cW->sourceid);
+    cW->sourceid = g_timeout_add(cW->vitesse, (GSourceFunc) time_handler, (gpointer) cW->window);
+    printf("\nstarting %d",cW->sourceid);
+}
+
+static void change_deplacement(GtkRange *range,CairoWindow *cW)
+{
+
+    cW->deplacement = gtk_range_get_value (range);
+    printf("------------>%d",cW->vitesse);
+    g_source_remove(cW->sourceid);
+    cW->sourceid = g_timeout_add(cW->vitesse, (GSourceFunc) time_handler, (gpointer) cW->window);
+    printf("\nstarting %d",cW->sourceid);
 }
 
 int main(int argc, char *argv[])
 {
-    GtkWidget *window;
+    CairoWindow cW;
+
     GtkWidget *boxH;
+    GtkWidget *boxV;
+
     GtkWidget *buttonStart;
     GtkWidget *buttonStop;
 
-    GtkWidget *boxV;
+    GtkWidget *scale;
+    GtkWidget *speedScale;
+
     GtkWidget *darea;
-    guint source_id;
+
     gtk_init(&argc, &argv);
 
-    window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_widget_set_size_request(GTK_WINDOW(window),400,300);
-  //  gtk_window_set_resizable(GTK_WINDOW(window),FALSE);
+    cW.window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_widget_set_size_request(GTK_WINDOW(cW.window),400,300);
+    gtk_window_set_position(GTK_WINDOW(cW.window), GTK_WIN_POS_CENTER);
+    gtk_window_set_default_size(GTK_WINDOW(cW.window), 400, 300);
+    gtk_window_set_title(GTK_WINDOW(cW.window), "Lines");
+    //  gtk_window_set_resizable(GTK_WINDOW(cW.window),FALSE);
 
     boxV=gtk_box_new(GTK_ORIENTATION_VERTICAL,0);
     boxH=gtk_box_new(GTK_ORIENTATION_HORIZONTAL,0);
 
-    WindowsSource wS;
-    wS.window=window;
+    cW.vitesse=100;
+    cW.deplacement=20;
 
     buttonStart = gtk_button_new();
     gtk_button_set_label(buttonStart,"Start");
@@ -230,48 +247,53 @@ int main(int argc, char *argv[])
     buttonStop = gtk_button_new();
     gtk_button_set_label(buttonStop,"Stop");
 
-    g_signal_connect (GTK_BUTTON (buttonStart),
-                      "clicked",
-                      G_CALLBACK (start_animation),
-                      &wS);
+    speedScale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL,0,1000,10);
+    gtk_scale_set_digits(speedScale,0);
+    gtk_scale_set_draw_value(speedScale,1);
+    gtk_scale_set_has_origin(speedScale,0);
+    gtk_scale_set_value_pos(speedScale,0);
 
-    g_signal_connect (GTK_BUTTON (buttonStop),
-                      "clicked",
-                      G_CALLBACK (stop_animation),
-                      &wS);
-
-        GtkWidget *scale;
     scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL,0,1000,10);
     gtk_scale_set_digits(scale,0);
     gtk_scale_set_draw_value(scale,1);
     gtk_scale_set_has_origin(scale,0);
     gtk_scale_set_value_pos(scale,0);
 
-    g_signal_connect(G_OBJECT(scale), "value-changed",G_CALLBACK (change_vitesse),&wS);
-
     darea = gtk_drawing_area_new();
+
+    gtk_widget_add_events(cW.window, GDK_BUTTON_PRESS_MASK);
+
+    g_signal_connect(G_OBJECT(darea), "draw",
+                     G_CALLBACK(on_draw_event), &cW);
+    g_signal_connect(cW.window, "destroy",
+                     G_CALLBACK(gtk_main_quit), NULL);
+    g_signal_connect(cW.window, "button-press-event",
+                     G_CALLBACK(clicked), &cW);
+
+    g_signal_connect (GTK_BUTTON (buttonStart),
+                      "clicked",
+                      G_CALLBACK (start_animation),
+                      &cW);
+
+    g_signal_connect (GTK_BUTTON (buttonStop),
+                      "clicked",
+                      G_CALLBACK (stop_animation),
+                      &cW);
+
+    g_signal_connect(G_OBJECT(speedScale), "value-changed",G_CALLBACK (change_vitesse),&cW);
+
+    g_signal_connect(G_OBJECT(scale), "value-changed",G_CALLBACK (change_deplacement),&cW);
 
     gtk_box_pack_start(GTK_BOX(boxH),buttonStart,FALSE,TRUE,FALSE);
     gtk_box_pack_start(GTK_BOX(boxH),buttonStop,FALSE,TRUE,FALSE);
+    gtk_box_pack_start(GTK_BOX(boxH),speedScale,TRUE,TRUE,FALSE);
     gtk_box_pack_start(GTK_BOX(boxH),scale,TRUE,TRUE,FALSE);
     gtk_box_pack_start(GTK_BOX(boxV),boxH,FALSE,TRUE,FALSE);
     gtk_box_pack_start(GTK_BOX(boxV),darea,TRUE,TRUE,TRUE);
 
-    gtk_container_add(GTK_CONTAINER(window), boxV);
+    gtk_container_add(GTK_CONTAINER(cW.window), boxV);
 
-    gtk_widget_add_events(window, GDK_BUTTON_PRESS_MASK);
-
-    g_signal_connect(G_OBJECT(darea), "draw",
-                     G_CALLBACK(on_draw_event), window);
-    g_signal_connect(window, "destroy",
-                     G_CALLBACK(gtk_main_quit), NULL);
-    g_signal_connect(window, "button-press-event",
-                     G_CALLBACK(clicked), &source_id);
-    gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
-    gtk_window_set_default_size(GTK_WINDOW(window), 400, 300);
-    gtk_window_set_title(GTK_WINDOW(window), "Lines");
-
-    gtk_widget_show_all(window);
+    gtk_widget_show_all(cW.window);
     gtk_main();
 
     return 0;
